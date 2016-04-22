@@ -1,24 +1,43 @@
+from time import sleep
+from urllib.parse import urljoin
+from threading import Thread
+
 import requests
 
 
 class Consul(object):
-    def __init__(self, host='localhost', port=8500):
-        pass
+    def __init__(self, url='http://localhost:8500/'):
+        self.url = url
 
-    def call(self, method, path, data={}, body={}, retry=False):
-        pass
+    def call(self, method, path, params={}, data={}, retry=False):
+        url = urljoin(self.url, path)
+        while True:
+            try:
+                r = requests.request(
+                    method,
+                    url,
+                    params,
+                    json=data,
+                    timeout=70,
+                )
+                r.raise_for_status()
+                return r.json()
+            except requests.RequestException:
+                if not retry:
+                    break
+                sleep(10)
 
-    def get(self, path, data={}, **kwargs):
-        pass
+    def get(self, path, params={}, **kwargs):
+        return self.call('GET', path, params, **kwargs)
 
-    def post(self, path, body={}, **kwargs):
-        pass
+    def post(self, path, data={}, **kwargs):
+        return self.call('POST', path, data=data, **kwargs)
 
-    def put(self, path, body={}, **kwargs):
-        pass
+    def put(self, path, data={}, **kwargs):
+        return self.call('PUT', path, data=data, **kwargs)
 
-    def delete(self, path, body={}, **kwargs):
-        pass
+    def delete(self, path, data={}, **kwargs):
+        return self.call('DELETE', path, data=data, **kwargs)
 
 
 class Session(object):
@@ -37,13 +56,13 @@ def monitor_lock(consul, name, session):
 
 
 def run_with_lock(consul, name, worker_factory):
-    self.session = Session(consul)
+    session = Session(consul)
     while True:
-        self.acquire()
+        acquire_lock(consul, 'flatline', session)
         thread = worker_factory(consul)
         thread.start()
         try:
-            self.monitor()
+            monitor_lock(consul, 'flatline', session)
         finally:
             thread.cancel()
 
@@ -66,7 +85,7 @@ class Worker(Thread):
     def cancel(self):
         self.cancelled = True
 
-    def body():
+    def body(self):
         updated = self.update_health_checks()
         for node, status in updated:
             ip = self.get_node_ip(node)
