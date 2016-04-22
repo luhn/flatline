@@ -67,7 +67,7 @@ class Session(object):
         logger.info('Acquiring session...')
         r = consul.put('v1/session/create', {
             'Name': name,
-        })
+        }, retry=True)
         self.id = r['ID']
         logger.info('Session acquired.  ID=%s', self.id)
 

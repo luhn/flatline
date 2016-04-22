@@ -14,7 +14,7 @@ def test_create_session():
     session.id = '03a3e15e-01fb-41d3-9ed6-243fb8dc0f1b'
     consul.call.assert_called_once_with('PUT', 'v1/session/create', data={
         'Name': 'flatline',
-    })
+    }, retry=True)
 
 
 def test_acquire_lock():
