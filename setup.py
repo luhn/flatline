@@ -12,7 +12,9 @@ setup(
     author='Theron Luhn',
     author_email='theron@luhn.com',
     url='https://github.com/luhn/flatline',
-    install_requires=[],
+    install_requires=[
+        'requests>=2,<3',
+    ],
     packages=['flatline'],
     entry_points={
         'console_scripts': ['flatline=flatline:main'],
