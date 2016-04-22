@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime as DateTime
 import json
-from unittest.mock import Mock
+from mock import Mock
 from flatline import *
 
 

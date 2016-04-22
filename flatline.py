@@ -1,7 +1,10 @@
 import logging
 import itertools
 from time import sleep
-from urllib.parse import urljoin
+try:
+    from urllib.parse import urljoin
+except ImportError:
+    from urlparse import urljoin
 from threading import Thread
 
 import boto3
