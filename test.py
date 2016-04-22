@@ -417,6 +417,56 @@ def test_get_instance_id():
     )
 
 
+def test_is_asg_instance():
+    asg = Mock()
+    asg.describe_auto_scaling_instances = Mock(return_value={
+        'AutoScalingInstances': [
+            {
+                'InstanceId': 'string',
+                'AutoScalingGroupName': 'string',
+                'AvailabilityZone': 'string',
+                'LifecycleState': 'InService',
+                'HealthStatus': 'string',
+                'LaunchConfigurationName': 'string',
+                'ProtectedFromScaleIn': True,
+            },
+        ],
+    })
+    worker = Worker(None, None, asg)
+    assert worker.is_asg_instance('i-1234')
+    asg.describe_auto_scaling_instances.assert_called_once_with(
+        InstanceIds=['i-1234'],
+    )
+
+
+def test_is_asg_instance_no_exists():
+    asg = Mock()
+    asg.describe_auto_scaling_instances = Mock(return_value={
+        'AutoScalingInstances': [],
+    })
+    worker = Worker(None, None, asg)
+    assert worker.is_asg_instance('i-1234') is False
+
+
+def _test_is_asg_instance_not_in_service():
+    asg = Mock()
+    asg.describe_auto_scaling_instances = Mock(return_value={
+        'AutoScalingInstances': [
+            {
+                'InstanceId': 'string',
+                'AutoScalingGroupName': 'string',
+                'AvailabilityZone': 'string',
+                'LifecycleState': 'Terminating',
+                'HealthStatus': 'string',
+                'LaunchConfigurationName': 'string',
+                'ProtectedFromScaleIn': True,
+            },
+        ],
+    })
+    worker = Worker(None, None, asg)
+    assert worker.is_asg_instance('i-1234')
+
+
 def test_update_instance_health():
     asg = Mock()
     worker = Worker(None, None, asg)

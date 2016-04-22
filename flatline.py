@@ -167,7 +167,8 @@ class Worker(Thread):
             logging.info('Updating ASG health.')
             ip = self.get_node_ip(node)
             id = self.get_instance_id(ip)
-            self.update_instance_health(id, status)
+            if self.is_asg_instance(id):
+                self.update_instance_health(id, status)
 
     def update_health_checks(self):
         checks = sorted(self.query_health_checks(), key=lambda x: x[0])
@@ -224,6 +225,16 @@ class Worker(Thread):
         if len(instances) > 1:
             raise ValueError('Multiple results found.')
         return instances[0]['InstanceId']
+
+    def is_asg_instance(self, id):
+        r = self.asg.describe_auto_scaling_instances(
+            InstanceIds=[id],
+        )
+        instances = r['AutoScalingInstances']
+        if len(instances) == 0:
+            return False
+        else:
+            return True
 
     def update_instance_health(self, id, status):
         self.asg.set_instance_health(
