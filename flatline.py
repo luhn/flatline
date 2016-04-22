@@ -183,11 +183,13 @@ class Worker(Thread):
 
     def query_health_checks(self):
         logging.info('Querying Consul for health checks.')
-        params = {
-            'wait': '10s',
-        }
-        if self.last_index is not None:
-            params['index'] = self.last_index
+        if self.last_index is None:
+            params = {}
+        else:
+            params = {
+                'wait': '10s',
+                'index': self.last_index,
+            }
         r, index = self.consul.get(
             'v1/health/state/any',
             params,

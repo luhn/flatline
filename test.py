@@ -139,9 +139,9 @@ def test_query_health_check_clean_slate():
         ('foobar', worker.HEALTHY),
         ('foobar', worker.UNHEALTHY),
     ]
-    consul.call.assert_called_once_with('GET', 'v1/health/state/any', {
-        'wait': '10s',
-    }, return_index=True)
+    consul.call.assert_called_once_with(
+        'GET', 'v1/health/state/any', {}, return_index=True,
+    )
     worker.last_index = '12'
 
 
