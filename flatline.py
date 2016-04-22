@@ -34,7 +34,7 @@ class Consul(object):
                     timeout=70,
                 )
                 r.raise_for_status()
-                logger.debug('Consul response:  HTTP %s', r.status)
+                logger.debug('Consul response:  HTTP %s', r.status_code)
                 logger.debug('Response body:  %s', r.text)
                 if return_index:
                     return r.json(), r.headers.get('X-Consul-Index')
@@ -107,7 +107,7 @@ def check_lock(consul, name, session):
     if len(r) == 0:
         raise LockLost()
     key = r[0]
-    if key['Session'] != session.id:
+    if key.get('Session') != session.id:
         raise LockLost()
 
 
@@ -115,7 +115,7 @@ def run_with_lock(consul, name, worker_factory):
     session = Session(consul, name)
     while True:
         acquire_lock(consul, name, session)
-        thread = worker_factory(consul)
+        thread = worker_factory()
         thread.start()
         try:
             while True:
@@ -142,7 +142,7 @@ class Worker(Thread):
     UNHEALTHY = 1
 
     def __init__(self, consul, ec2, asg):
-        super(Thread, self).__init__()
+        super(Worker, self).__init__()
         self.consul = consul
         self.ec2 = ec2
         self.asg = asg
@@ -151,7 +151,7 @@ class Worker(Thread):
     def run(self):
         logger.info('Starting worker...')
         while not self.cancelled:
-            self._body()
+            self.body()
 
     def cancel(self):
         self.cancelled = True
