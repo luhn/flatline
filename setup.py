@@ -14,6 +14,7 @@ setup(
     url='https://github.com/luhn/flatline',
     install_requires=[
         'requests>=2,<3',
+        'boto3>=1,<2',
     ],
     py_modules=['flatline'],
     entry_points={
