@@ -39,6 +39,17 @@ def test_acquire_lock_with_retry():
     })
 
 
+def test_release_lock():
+    consul = Consul()
+    consul.call = Mock(return_value=True)
+    session = Mock()
+    session.id = '03a3e15e-01fb-41d3-9ed6-243fb8dc0f1b'
+    release_lock(consul, 'abc', session)
+    consul.call.assert_called_with('PUT', 'v1/kv/abc', data={}, params={
+        'release': session.id,
+    })
+
+
 def test_check_lock_still_holding():
     consul = Consul()
     consul.call = Mock(return_value=[

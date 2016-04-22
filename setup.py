@@ -15,7 +15,7 @@ setup(
     install_requires=[
         'requests>=2,<3',
     ],
-    packages=['flatline'],
+    py_modules=['flatline'],
     entry_points={
         'console_scripts': ['flatline=flatline:main'],
     },

@@ -91,6 +91,13 @@ def acquire_lock(consul, name, session, retry_delay=5):
         sleep(retry_delay)
 
 
+def release_lock(consul, name, session):
+    logger.info('Releasing lock...')
+    consul.put('v1/kv/{}'.format(name), params={
+        'release': session.id,
+    })
+
+
 def check_lock(consul, name, session):
     logger.debug('Checking lock...')
     r = consul.get('v1/kv/{}'.format(name))
@@ -111,11 +118,13 @@ def run_with_lock(consul, name, worker_factory):
             while True:
                 check_lock(consul, name, session)
                 if not thread.isAlive():
-                    logger.error('Worker died!')
                     raise WorkerDied()
                 sleep(5)
-        except (WorkerDied, LockLost):
-            pass
+        except WorkerDied:
+            logger.error('Worker died!')
+            release_lock(consul, name, session)
+        except LockLost:
+            logger.error('Lock lost.')
         finally:
             if thread.isAlive():
                 logger.info('Quitting worker...')
@@ -218,9 +227,13 @@ class Worker(Thread):
         )
 
 
-if __name__ == '__main__':
+def main():
     consul = Consul()
     ec2 = boto3.client('ec2')
     asg = boto3.client('autoscaling')
     worker_factory = lambda: Worker(consul, ec2, asg)
     run_with_lock(consul, 'flatline', worker_factory)
+
+
+if __name__ == '__main__':
+    main()
