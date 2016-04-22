@@ -1,8 +1,10 @@
 import logging
+import itertools
 from time import sleep
 from urllib.parse import urljoin
 from threading import Thread
 
+import boto3
 import requests
 
 
@@ -14,7 +16,8 @@ class Consul(object):
     def __init__(self, url='http://localhost:8500/'):
         self.url = url
 
-    def call(self, method, path, params={}, data={}, retry=False):
+    def call(self, method, path, params={}, data={}, retry=False,
+             return_index=False):
         url = urljoin(self.url, path)
         while True:
             try:
@@ -30,7 +33,10 @@ class Consul(object):
                 r.raise_for_status()
                 logger.debug('Consul response:  HTTP %s', r.status)
                 logger.debug('Response body:  %s', r.text)
-                return r.json()
+                if return_index:
+                    return r.json(), r.headers.get('X-Consul-Index')
+                else:
+                    return r.json()
             except requests.RequestException:
                 if not retry:
                     raise
@@ -118,13 +124,16 @@ def run_with_lock(consul, name, worker_factory):
 
 class Worker(Thread):
     cancelled = False
+    last_index = None
 
     HEALTHY = 0
     UNHEALTHY = 1
 
-    def __init__(self, consul):
-        super(self, Thread).__init__()
+    def __init__(self, consul, ec2, asg):
+        super(Thread, self).__init__()
         self.consul = consul
+        self.ec2 = ec2
+        self.asg = asg
         self.node_status = {}
 
     def run(self):
@@ -138,27 +147,80 @@ class Worker(Thread):
     def body(self):
         updated = self.update_health_checks()
         for node, status in updated:
+            logging.info(
+                '%s is now %s',
+                node,
+                'Healthy' if status == self.HEALTHY else 'Unhealthy',
+            )
+            logging.info('Updating ASG health.')
             ip = self.get_node_ip(node)
             id = self.get_instance_id(ip)
-            self.update_node_health(id, status)
+            self.update_instance_health(id, status)
 
     def update_health_checks(self):
-        pass
+        checks = sorted(self.query_health_checks(), key=lambda x: x[0])
+        for k, g in itertools.groupby(checks, lambda x: x[0]):
+            is_healthy = all(entry[1] == self.HEALTHY for entry in g)
+            status = (
+                self.HEALTHY if is_healthy else self.UNHEALTHY
+            )
+            old_status = self.node_status.get(k)
+            if old_status != status:
+                self.node_status[k] = status
+                yield k, status
 
     def query_health_checks(self):
-        pass
+        logging.info('Querying Consul for health checks.')
+        params = {
+            'wait': '10s',
+        }
+        if self.last_index is not None:
+            params['index'] = self.last_index
+        r, index = self.consul.get(
+            'v1/health/state/any',
+            params,
+            return_index=True,
+        )
+        self.last_index = index
+        for entry in r:
+            health = (
+                self.HEALTHY if entry['Status'] == 'passing'
+                else self.UNHEALTHY
+            )
+            yield entry['Node'], health
 
     def get_node_ip(self, node_name):
-        pass
+        r = self.consul.get('v1/catalog/node/{}'.format(node_name))
+        return r['Node']['Address']
 
     def get_instance_id(self, ip):
-        pass
+        r = self.ec2.describe_instances(
+            Filters=[
+                {
+                    'Name': 'private-ip-address',
+                    'Values': [ip],
+                },
+            ],
+        )
+        try:
+            reservation = r['Reservations'][0]
+        except IndexError:
+            raise ValueError('No results found.')
+        instances = reservation['Instances']
+        if len(instances) > 1:
+            raise ValueError('Multiple results found.')
+        return instances[0]['InstanceId']
 
-    def update_node_health(self, id, status):
-        pass
+    def update_instance_health(self, id, status):
+        self.asg.set_instance_health(
+            InstanceId=id,
+            HealthStatus='Healthy' if status == self.HEALTHY else 'Unhealthy',
+        )
 
 
 if __name__ == '__main__':
     consul = Consul()
-    worker_factory = lambda: Worker(consul)
+    ec2 = boto3.client('ec2')
+    asg = boto3.client('autoscaling')
+    worker_factory = lambda: Worker(consul, ec2, asg)
     run_with_lock(consul, 'flatline', worker_factory)
