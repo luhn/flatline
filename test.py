@@ -417,6 +417,17 @@ def test_get_instance_id():
     )
 
 
+def test_get_instance_id_not_found():
+    ec2 = Mock()
+    ec2.describe_instances = Mock(return_value={
+        'Reservations': [],
+        'NextToken': 'string'
+    })
+    worker = Worker(None, ec2, None)
+    with pytest.raises(InstanceNotFound):
+        worker.get_instance_id('10.0.1.123')
+
+
 def test_is_asg_instance():
     asg = Mock()
     asg.describe_auto_scaling_instances = Mock(return_value={

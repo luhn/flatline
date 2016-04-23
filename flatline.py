@@ -134,6 +134,10 @@ def run_with_lock(consul, name, worker_factory):
                 thread.cancel()
 
 
+class InstanceNotFound(Exception):
+    pass
+
+
 class Worker(Thread):
     cancelled = False
     last_index = None
@@ -166,7 +170,10 @@ class Worker(Thread):
             )
             logging.info('Updating ASG health.')
             ip = self.get_node_ip(node)
-            id = self.get_instance_id(ip)
+            try:
+                id = self.get_instance_id(ip)
+            except InstanceNotFound:
+                continue
             if self.is_asg_instance(id):
                 self.update_instance_health(id, status)
 
@@ -220,7 +227,7 @@ class Worker(Thread):
         try:
             reservation = r['Reservations'][0]
         except IndexError:
-            raise ValueError('No results found.')
+            raise InstanceNotFound()
         instances = reservation['Instances']
         if len(instances) > 1:
             raise ValueError('Multiple results found.')
