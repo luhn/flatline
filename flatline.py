@@ -180,9 +180,10 @@ class Worker(Thread):
     def update_health_checks(self):
         checks = sorted(self.query_health_checks(), key=lambda x: x[0])
         for k, g in itertools.groupby(checks, lambda x: x[0]):
-            is_healthy = all(entry[1] == self.HEALTHY for entry in g)
+            is_healthy = all(entry[2] == self.HEALTHY for entry in g)
+            is_maint = any(entry[1] == '_node_maintenance' for entry in g)
             status = (
-                self.HEALTHY if is_healthy else self.UNHEALTHY
+                self.HEALTHY if is_healthy or is_maint else self.UNHEALTHY
             )
             old_status = self.node_status.get(k)
             if old_status != status:
@@ -209,7 +210,7 @@ class Worker(Thread):
                 self.HEALTHY if entry['Status'] == 'passing'
                 else self.UNHEALTHY
             )
-            yield entry['Node'], health
+            yield entry['Node'], entry['CheckID'], health
 
     def get_node_ip(self, node_name):
         r = self.consul.get('v1/catalog/node/{}'.format(node_name))

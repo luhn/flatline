@@ -136,8 +136,8 @@ def test_query_health_check_clean_slate():
     worker = Worker(consul, None, None)
     checks = worker.query_health_checks()
     assert list(checks) == [
-        ('foobar', worker.HEALTHY),
-        ('foobar', worker.UNHEALTHY),
+        ('foobar', 'serfHealth', worker.HEALTHY),
+        ('foobar', 'service:redis', worker.UNHEALTHY),
     ]
     consul.call.assert_called_once_with(
         'GET', 'v1/health/state/any', {}, return_index=True,
@@ -161,12 +161,12 @@ def test_query_health_check_index():
 def test_update_health_checks_blank():
     worker = Worker(None, None, None)
     worker.query_health_checks = Mock(return_value=[
-        ('healthy', worker.HEALTHY),
-        ('unhealthy2', worker.HEALTHY),
-        ('healthy', worker.HEALTHY),
-        ('unhealthy', worker.UNHEALTHY),
-        ('unhealthy2', worker.UNHEALTHY),
-        ('healthy', worker.HEALTHY),
+        ('healthy', '1', worker.HEALTHY),
+        ('unhealthy2', '2', worker.HEALTHY),
+        ('healthy', '3', worker.HEALTHY),
+        ('unhealthy', '4', worker.UNHEALTHY),
+        ('unhealthy2', '5', worker.UNHEALTHY),
+        ('healthy', '6', worker.HEALTHY),
     ])
     r = worker.update_health_checks()
     assert set(r) == {
@@ -189,12 +189,12 @@ def test_update_health_no_change():
         'unhealthy2': worker.UNHEALTHY,
     }
     worker.query_health_checks = Mock(return_value=[
-        ('healthy', worker.HEALTHY),
-        ('unhealthy2', worker.HEALTHY),
-        ('healthy', worker.HEALTHY),
-        ('unhealthy', worker.UNHEALTHY),
-        ('unhealthy2', worker.UNHEALTHY),
-        ('healthy', worker.HEALTHY),
+        ('healthy', '1', worker.HEALTHY),
+        ('unhealthy2', '2', worker.HEALTHY),
+        ('healthy', '3', worker.HEALTHY),
+        ('unhealthy', '4', worker.UNHEALTHY),
+        ('unhealthy2', '5', worker.UNHEALTHY),
+        ('healthy', '6', worker.HEALTHY),
     ])
     r = worker.update_health_checks()
     assert set(r) == set()
@@ -213,12 +213,12 @@ def test_update_health_partial_change():
         'unhealthy2': worker.UNHEALTHY,
     }
     worker.query_health_checks = Mock(return_value=[
-        ('healthy', worker.HEALTHY),
-        ('unhealthy2', worker.HEALTHY),
-        ('healthy', worker.HEALTHY),
-        ('unhealthy', worker.UNHEALTHY),
-        ('unhealthy2', worker.HEALTHY),
-        ('healthy', worker.HEALTHY),
+        ('healthy', '1', worker.HEALTHY),
+        ('unhealthy2', '2', worker.HEALTHY),
+        ('healthy', '3', worker.HEALTHY),
+        ('unhealthy', '4', worker.UNHEALTHY),
+        ('unhealthy2', '5', worker.HEALTHY),
+        ('healthy', '6', worker.HEALTHY),
     ])
     r = worker.update_health_checks()
     assert set(r) == {
@@ -228,6 +228,22 @@ def test_update_health_partial_change():
         'healthy': worker.HEALTHY,
         'unhealthy': worker.UNHEALTHY,
         'unhealthy2': worker.HEALTHY,
+    }
+
+
+def test_update_health_maintenance_mode():
+    worker = Worker(None, None, None)
+    worker.node_status = {
+        'healthy': worker.HEALTHY,
+    }
+    worker.query_health_checks = Mock(return_value=[
+        ('healthy', '1', worker.UNHEALTHY),
+        ('healthy', '_node_maintenance', worker.UNHEALTHY),
+    ])
+    r = worker.update_health_checks()
+    assert set(r) == set()
+    assert worker.node_status == {
+        'healthy': worker.HEALTHY,
     }
 
 
