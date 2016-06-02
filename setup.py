@@ -16,7 +16,7 @@ setup(
         'requests>=2,<3',
         'boto3>=1,<2',
     ],
-    py_modules=['flatline'],
+    packages=['flatline'],
     entry_points={
         'console_scripts': ['flatline=flatline:main'],
     },

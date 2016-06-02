@@ -178,7 +178,3 @@ def main():
     asg = boto3.client('autoscaling')
     worker = Worker(consul, ec2, asg)
     worker.run()
-
-
-if __name__ == '__main__':
-    main()
