@@ -5,7 +5,6 @@ try:
     from urllib.parse import urljoin
 except ImportError:
     from urlparse import urljoin
-from threading import Thread
 
 import boto3
 import requests
@@ -64,8 +63,7 @@ class InstanceNotFound(Exception):
     pass
 
 
-class Worker(Thread):
-    cancelled = False
+class Worker(object):
     last_index = None
 
     HEALTHY = 0
@@ -80,11 +78,8 @@ class Worker(Thread):
 
     def run(self):
         logger.info('Starting worker...')
-        while not self.cancelled:
+        while True:
             self.body()
-
-    def cancel(self):
-        self.cancelled = True
 
     def body(self):
         updated = self.update_health_checks()
