@@ -60,80 +60,6 @@ class Consul(object):
         return self.call('DELETE', path, data=data, **kwargs)
 
 
-class Session(object):
-    id = None
-
-    def __init__(self, consul, name):
-        logger.info('Acquiring session...')
-        r = consul.put('v1/session/create', {
-            'Name': name,
-        }, retry=True)
-        self.id = r['ID']
-        logger.info('Session acquired.  ID=%s', self.id)
-
-
-class WorkerDied(Exception):
-    pass
-
-
-class LockLost(Exception):
-    pass
-
-
-def acquire_lock(consul, name, session, retry_delay=5):
-    logger.info('Waiting to acquire lock...')
-    while True:
-        logger.debug('Attempting to acquire...')
-        r = consul.put('v1/kv/{}'.format(name), params={
-            'acquire': session.id,
-        })
-        if r:
-            logger.info('Lock acquired.')
-            return
-        logger.info('Failed to acquire.')
-        sleep(retry_delay)
-
-
-def release_lock(consul, name, session):
-    logger.info('Releasing lock...')
-    consul.put('v1/kv/{}'.format(name), params={
-        'release': session.id,
-    })
-
-
-def check_lock(consul, name, session):
-    logger.debug('Checking lock...')
-    r = consul.get('v1/kv/{}'.format(name))
-    if len(r) == 0:
-        raise LockLost()
-    key = r[0]
-    if key.get('Session') != session.id:
-        raise LockLost()
-
-
-def run_with_lock(consul, name, worker_factory):
-    session = Session(consul, name)
-    while True:
-        acquire_lock(consul, name, session)
-        thread = worker_factory()
-        thread.start()
-        try:
-            while True:
-                check_lock(consul, name, session)
-                if not thread.isAlive():
-                    raise WorkerDied()
-                sleep(5)
-        except WorkerDied:
-            logger.error('Worker died!')
-            release_lock(consul, name, session)
-        except LockLost:
-            logger.error('Lock lost.')
-        finally:
-            if thread.isAlive():
-                logger.info('Quitting worker...')
-                thread.cancel()
-
-
 class InstanceNotFound(Exception):
     pass
 
@@ -255,8 +181,8 @@ def main():
     consul = Consul()
     ec2 = boto3.client('ec2')
     asg = boto3.client('autoscaling')
-    worker_factory = lambda: Worker(consul, ec2, asg)
-    run_with_lock(consul, 'flatline', worker_factory)
+    worker = Worker(consul, ec2, asg)
+    worker.run()
 
 
 if __name__ == '__main__':
